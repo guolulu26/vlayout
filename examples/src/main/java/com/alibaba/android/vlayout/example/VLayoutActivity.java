@@ -29,6 +29,9 @@ import com.alibaba.android.vlayout.LayoutHelper;
 import com.alibaba.android.vlayout.RecyclablePagerAdapter;
 import com.alibaba.android.vlayout.VirtualLayoutManager;
 import com.alibaba.android.vlayout.VirtualLayoutManager.LayoutParams;
+import com.alibaba.android.vlayout.extend.LayoutManagerCanScrollListener;
+import com.alibaba.android.vlayout.extend.PerformanceMonitor;
+import com.alibaba.android.vlayout.extend.ViewLifeCycleListener;
 import com.alibaba.android.vlayout.layout.ColumnLayoutHelper;
 import com.alibaba.android.vlayout.layout.FixLayoutHelper;
 import com.alibaba.android.vlayout.layout.FloatLayoutHelper;
@@ -109,8 +112,8 @@ public class VLayoutActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_activity);
 
-        mSwipeRefreshLayout = (SwipeRefreshLayout)findViewById(R.id.swipe_container);
-;
+        mSwipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.swipe_container);
+        ;
         mFirstText = (TextView) findViewById(R.id.first);
         mLastText = (TextView) findViewById(R.id.last);
         mCountText = (TextView) findViewById(R.id.count);
@@ -119,7 +122,22 @@ public class VLayoutActivity extends Activity {
         final RecyclerView recyclerView = (RecyclerView) findViewById(R.id.main_view);
 
         final VirtualLayoutManager layoutManager = new VirtualLayoutManager(this);
+        layoutManager.setPerformanceMonitor(new PerformanceMonitor() {
 
+            long start;
+            long end;
+
+            @Override
+            public void recordStart(String phase, View view) {
+                start = System.currentTimeMillis();
+            }
+
+            @Override
+            public void recordEnd(String phase, View view) {
+                end = System.currentTimeMillis();
+                Log.d("VLayoutActivity", view.getClass().getName() + " " + (end - start));
+            }
+        });
         recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(RecyclerView recyclerView, int scrollState) {
@@ -134,8 +152,6 @@ public class VLayoutActivity extends Activity {
                 mTotalOffsetText.setText("Total Offset: " + layoutManager.getOffsetToStart());
             }
         });
-
-        layoutManager.setRecycleOffset(300);
 
         recyclerView.setLayoutManager(layoutManager);
 
@@ -156,6 +172,45 @@ public class VLayoutActivity extends Activity {
         // recyclerView.addItemDecoration(itemDecoration);
 
         viewPool.setMaxRecycledViews(0, 20);
+
+        layoutManager.setRecycleOffset(300);
+
+        // viewLifeCycleListener should be used with setRecycleOffset()
+        layoutManager.setViewLifeCycleListener(new ViewLifeCycleListener() {
+            @Override
+            public void onAppearing(View view) {
+//                Log.e("ViewLifeCycleTest", "onAppearing: " + view);
+            }
+
+            @Override
+            public void onDisappearing(View view) {
+//                Log.e("ViewLifeCycleTest", "onDisappearing: " + view);
+            }
+
+            @Override
+            public void onAppeared(View view) {
+//                Log.e("ViewLifeCycleTest", "onAppeared: " + view);
+            }
+
+            @Override
+            public void onDisappeared(View view) {
+//                Log.e("ViewLifeCycleTest", "onDisappeared: " + view);
+            }
+        });
+
+        layoutManager.setLayoutManagerCanScrollListener(new LayoutManagerCanScrollListener() {
+            @Override
+            public boolean canScrollVertically() {
+                Log.i("vlayout", "canScrollVertically: ");
+                return true;
+            }
+
+            @Override
+            public boolean canScrollHorizontally() {
+                Log.i("vlayout", "canScrollHorizontally: ");
+                return true;
+            }
+        });
 
         final DelegateAdapter delegateAdapter = new DelegateAdapter(layoutManager, true);
 
@@ -264,82 +319,82 @@ public class VLayoutActivity extends Activity {
             });
         }
 
-		{
-            RangeGridLayoutHelper layoutHelper = new RangeGridLayoutHelper(4);
-            layoutHelper.setBgColor(Color.GREEN);
-            layoutHelper.setWeights(new float[]{20f, 26.665f});
-            layoutHelper.setPadding(15, 15, 15, 15);
-            layoutHelper.setMargin(15, 50, 15, 150);
-            layoutHelper.setHGap(10);
-            layoutHelper.setVGap(10);
-            GridRangeStyle rangeStyle = new GridRangeStyle();
-            rangeStyle.setBgColor(Color.RED);
-            rangeStyle.setSpanCount(2);
-            rangeStyle.setWeights(new float[]{46.665f});
-            rangeStyle.setPadding(15, 15, 15, 15);
-            rangeStyle.setMargin(15, 15, 15, 15);
-            rangeStyle.setHGap(5);
-            rangeStyle.setVGap(5);
-            layoutHelper.addRangeStyle(0, 7, rangeStyle);
+//        {
+//            RangeGridLayoutHelper layoutHelper = new RangeGridLayoutHelper(4);
+//            layoutHelper.setBgColor(Color.GREEN);
+//            layoutHelper.setWeights(new float[]{20f, 26.665f});
+//            layoutHelper.setPadding(15, 15, 15, 15);
+//            layoutHelper.setMargin(15, 50, 15, 150);
+//            layoutHelper.setHGap(10);
+//            layoutHelper.setVGap(10);
+//            GridRangeStyle rangeStyle = new GridRangeStyle();
+//            rangeStyle.setBgColor(Color.RED);
+//            rangeStyle.setSpanCount(2);
+//            rangeStyle.setWeights(new float[]{46.665f});
+//            rangeStyle.setPadding(15, 15, 15, 15);
+//            rangeStyle.setMargin(15, 15, 15, 15);
+//            rangeStyle.setHGap(5);
+//            rangeStyle.setVGap(5);
+//            layoutHelper.addRangeStyle(0, 7, rangeStyle);
+//
+//            GridRangeStyle rangeStyle1 = new GridRangeStyle();
+//            rangeStyle1.setBgColor(Color.YELLOW);
+//            rangeStyle1.setSpanCount(2);
+//            rangeStyle1.setWeights(new float[]{46.665f});
+//            rangeStyle1.setPadding(15, 15, 15, 15);
+//            rangeStyle1.setMargin(15, 15, 15, 15);
+//            rangeStyle1.setHGap(5);
+//            rangeStyle1.setVGap(5);
+//            layoutHelper.addRangeStyle(8, 15, rangeStyle1);
+//
+//            GridRangeStyle rangeStyle2 = new GridRangeStyle();
+//            rangeStyle2.setBgColor(Color.CYAN);
+//            rangeStyle2.setSpanCount(2);
+//            rangeStyle2.setWeights(new float[]{46.665f});
+//            rangeStyle2.setPadding(15, 15, 15, 15);
+//            rangeStyle2.setMargin(15, 15, 15, 15);
+//            rangeStyle2.setHGap(5);
+//            rangeStyle2.setVGap(5);
+//            layoutHelper.addRangeStyle(16, 22, rangeStyle2);
+//            GridRangeStyle rangeStyle3 = new GridRangeStyle();
+//            rangeStyle3.setBgColor(Color.DKGRAY);
+//            rangeStyle3.setSpanCount(1);
+//            rangeStyle3.setWeights(new float[]{46.665f});
+//            rangeStyle3.setPadding(15, 15, 15, 15);
+//            rangeStyle3.setMargin(15, 15, 15, 15);
+//            rangeStyle3.setHGap(5);
+//            rangeStyle3.setVGap(5);
+//            rangeStyle2.addChildRangeStyle(0, 2, rangeStyle3);
+//            GridRangeStyle rangeStyle4 = new GridRangeStyle();
+//            rangeStyle4.setBgColor(Color.BLUE);
+//            rangeStyle4.setSpanCount(2);
+//            rangeStyle4.setWeights(new float[]{46.665f});
+//            rangeStyle4.setPadding(15, 15, 15, 15);
+//            rangeStyle4.setMargin(15, 15, 15, 15);
+//            rangeStyle4.setHGap(5);
+//            rangeStyle4.setVGap(5);
+//            rangeStyle2.addChildRangeStyle(3, 6, rangeStyle4);
+//
+//            GridRangeStyle rangeStyle5 = new GridRangeStyle();
+//            rangeStyle5.setBgColor(Color.RED);
+//            rangeStyle5.setSpanCount(2);
+//            rangeStyle5.setPadding(15, 15, 15, 15);
+//            rangeStyle5.setMargin(15, 15, 15, 15);
+//            rangeStyle5.setHGap(5);
+//            rangeStyle5.setVGap(5);
+//            layoutHelper.addRangeStyle(23, 30, rangeStyle5);
+//            GridRangeStyle rangeStyle6 = new GridRangeStyle();
+//            rangeStyle6.setBgColor(Color.MAGENTA);
+//            rangeStyle6.setSpanCount(2);
+//            rangeStyle6.setPadding(15, 15, 15, 15);
+//            rangeStyle6.setMargin(15, 15, 15, 15);
+//            rangeStyle6.setHGap(5);
+//            rangeStyle6.setVGap(5);
+//            rangeStyle5.addChildRangeStyle(0, 7, rangeStyle6);
+//
+//            adapters.add(new SubAdapter(this, layoutHelper, 23));
+//        }
 
-            GridRangeStyle rangeStyle1 = new GridRangeStyle();
-            rangeStyle1.setBgColor(Color.YELLOW);
-            rangeStyle1.setSpanCount(2);
-            rangeStyle1.setWeights(new float[]{46.665f});
-            rangeStyle1.setPadding(15, 15, 15, 15);
-            rangeStyle1.setMargin(15, 15, 15, 15);
-            rangeStyle1.setHGap(5);
-            rangeStyle1.setVGap(5);
-            layoutHelper.addRangeStyle(8, 15, rangeStyle1);
-
-            GridRangeStyle rangeStyle2 = new GridRangeStyle();
-            rangeStyle2.setBgColor(Color.CYAN);
-            rangeStyle2.setSpanCount(2);
-            rangeStyle2.setWeights(new float[]{46.665f});
-            rangeStyle2.setPadding(15, 15, 15, 15);
-            rangeStyle2.setMargin(15, 15, 15, 15);
-            rangeStyle2.setHGap(5);
-            rangeStyle2.setVGap(5);
-            layoutHelper.addRangeStyle(16, 22, rangeStyle2);
-            GridRangeStyle rangeStyle3 = new GridRangeStyle();
-            rangeStyle3.setBgColor(Color.DKGRAY);
-            rangeStyle3.setSpanCount(1);
-            rangeStyle3.setWeights(new float[]{46.665f});
-            rangeStyle3.setPadding(15, 15, 15, 15);
-            rangeStyle3.setMargin(15, 15, 15, 15);
-            rangeStyle3.setHGap(5);
-            rangeStyle3.setVGap(5);
-            rangeStyle2.addChildRangeStyle(0, 2, rangeStyle3);
-            GridRangeStyle rangeStyle4 = new GridRangeStyle();
-            rangeStyle4.setBgColor(Color.BLUE);
-            rangeStyle4.setSpanCount(2);
-            rangeStyle4.setWeights(new float[]{46.665f});
-            rangeStyle4.setPadding(15, 15, 15, 15);
-            rangeStyle4.setMargin(15, 15, 15, 15);
-            rangeStyle4.setHGap(5);
-            rangeStyle4.setVGap(5);
-            rangeStyle2.addChildRangeStyle(3, 6, rangeStyle4);
-
-            GridRangeStyle rangeStyle5 = new GridRangeStyle();
-            rangeStyle5.setBgColor(Color.RED);
-            rangeStyle5.setSpanCount(2);
-            rangeStyle5.setPadding(15, 15, 15, 15);
-            rangeStyle5.setMargin(15, 15, 15, 15);
-            rangeStyle5.setHGap(5);
-            rangeStyle5.setVGap(5);
-            layoutHelper.addRangeStyle(23, 30, rangeStyle5);
-            GridRangeStyle rangeStyle6 = new GridRangeStyle();
-            rangeStyle6.setBgColor(Color.MAGENTA);
-            rangeStyle6.setSpanCount(2);
-            rangeStyle6.setPadding(15, 15, 15, 15);
-            rangeStyle6.setMargin(15, 15, 15, 15);
-            rangeStyle6.setHGap(5);
-            rangeStyle6.setVGap(5);
-            rangeStyle5.addChildRangeStyle(0, 7, rangeStyle6);
-
-            adapters.add(new SubAdapter(this, layoutHelper, 23));
-        }
-		
         {
             SingleLayoutHelper layoutHelper = new SingleLayoutHelper();
             layoutHelper.setBgColor(Color.BLUE);
@@ -616,7 +671,7 @@ public class VLayoutActivity extends Activity {
         }
 
         adapters.add(
-            new FooterAdapter(recyclerView, VLayoutActivity.this, new GridLayoutHelper(1), 1));
+                new FooterAdapter(recyclerView, VLayoutActivity.this, new GridLayoutHelper(1), 1));
 
         delegateAdapter.setAdapters(adapters);
 
@@ -626,8 +681,8 @@ public class VLayoutActivity extends Activity {
         trigger = new Runnable() {
             @Override
             public void run() {
-                 //recyclerView.scrollToPosition(22);
-                 //recyclerView.getAdapter().notifyDataSetChanged();
+                //recyclerView.scrollToPosition(22);
+                //recyclerView.getAdapter().notifyDataSetChanged();
                 //mainHandler.postDelayed(trigger, 1000);
                 //List<DelegateAdapter.Adapter> newAdapters = new ArrayList<>();
                 //newAdapters.add((new SubAdapter(VLayoutActivity.this, new ColumnLayoutHelper(), 3)));
@@ -656,7 +711,6 @@ public class VLayoutActivity extends Activity {
                 //footer.toggleFoot();
             }
         });
-
 
 
         mainHandler.postDelayed(trigger, 1000);

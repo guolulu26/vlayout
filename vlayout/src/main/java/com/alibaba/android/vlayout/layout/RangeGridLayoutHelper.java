@@ -24,7 +24,13 @@
 
 package com.alibaba.android.vlayout.layout;
 
-import java.util.Arrays;
+import android.support.annotation.NonNull;
+import android.support.v4.util.ArrayMap;
+import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.RecyclerView.Recycler;
+import android.support.v7.widget.RecyclerView.State;
+import android.util.Log;
+import android.view.View;
 
 import com.alibaba.android.vlayout.LayoutManagerHelper;
 import com.alibaba.android.vlayout.OrientationHelperEx;
@@ -35,13 +41,9 @@ import com.alibaba.android.vlayout.VirtualLayoutManager.LayoutStateWrapper;
 import com.alibaba.android.vlayout.layout.GridLayoutHelper.DefaultSpanSizeLookup;
 import com.alibaba.android.vlayout.layout.GridLayoutHelper.SpanSizeLookup;
 
-import android.support.annotation.NonNull;
-import android.support.v4.util.ArrayMap;
-import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.RecyclerView.Recycler;
-import android.support.v7.widget.RecyclerView.State;
-import android.util.Log;
-import android.view.View;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static android.support.v7.widget.LinearLayoutManager.VERTICAL;
 
@@ -258,8 +260,8 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
 
         if (!layingOutInPrimaryDirection) {
             // fill the remaining spacing this row
-            int itemSpanIndex = getSpanIndex(rangeStyle.mSpanSizeLookup, rangeStyle.mSpanCount, recycler, state, layoutState.getCurrentPosition());
-            int itemSpanSize = getSpanSize(rangeStyle.mSpanSizeLookup, recycler, state, layoutState.getCurrentPosition());
+            int itemSpanIndex = getSpanIndex(rangeStyle.mSpanSizeLookup, rangeStyle.mSpanCount, recycler, state, currentPosition);
+            int itemSpanSize = getSpanSize(rangeStyle.mSpanSizeLookup, recycler, state, currentPosition);
 
 
             remainingSpan = itemSpanIndex + itemSpanSize;
@@ -343,20 +345,12 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
                 break; // item did not fit into this row or column
             }
 
-            View view = layoutState.next(recycler);
-            if (view == null) {
-                break;
-            }
-
             if (!isStartLine) {
                 isStartLine = helper.getReverseLayout() ? pos == mRangeStyle.getRange().getUpper().intValue()
                     : pos == mRangeStyle.getRange().getLower().intValue();
             }
             if (!isSecondStartLine) {
                 if (!rangeStyle.equals(mRangeStyle)) {
-                    if (mLayoutWithAnchor) {
-                        pos = layoutState.getCurrentPosition();
-                    }
                     isSecondStartLine = helper.getReverseLayout() ? pos == rangeStyle.getRange().getUpper()
                         .intValue() : pos == rangeStyle.getRange().getLower().intValue();
                 }
@@ -369,12 +363,17 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
 
             if (!isSecondEndLine) {
                 if (!rangeStyle.equals(mRangeStyle)) {
-                    if (mLayoutWithAnchor) {
-                        pos = layoutState.getCurrentPosition();
-                    }
                     isSecondEndLine = helper.getReverseLayout() ? pos == rangeStyle.getRange().getLower()
                         .intValue() : pos == rangeStyle.getRange().getUpper().intValue();
+                    if (DEBUG) {
+                        Log.d(TAG, "isSecondEndLineLogic:" + isSecondEndLine + "  helper.getReverseLayout()=" + helper.getReverseLayout() + " pos=" + pos + " rangeStyle.getRange().getLower()=" + rangeStyle.getRange().getLower() + " rangeStyle.getRange().getUpper()=" + rangeStyle.getRange().getUpper());
+                    }
                 }
+            }
+
+            View view = layoutState.next(recycler);
+            if (view == null) {
+                break;
             }
 
             consumedSpanCount += spanSize;
@@ -528,6 +527,9 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
         if (isSecondEndLine) {
             secondEndSpace = (layoutInVertical ? rangeStyle.getMarginBottom() + rangeStyle.getPaddingBottom()
                 : rangeStyle.getMarginRight() + rangeStyle.getPaddingRight());
+            if (DEBUG) {
+                Log.d(TAG, "isSecondEndLineLogic:" + isSecondEndLine + " pos=" + currentPosition + " secondEndSpace=" + secondEndSpace);
+            }
         }
 
 
@@ -613,8 +615,8 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
 
         if (DEBUG) {
             Log.d(TAG,
-                (layoutStart ? "⬆ " : "⬇ ") + currentPosition + " consumed " + result.mConsumed + " startSpace " + startSpace + " endSpace "
-                    + endSpace + " secondStartSpace " + secondStartSpace + " secondEndSpace " + secondEndSpace + " lastUnconsumedSpace " + lastUnconsumedSpace);
+                    (layoutStart ? "⬆ " : "⬇ ") + currentPosition + " consumed " + result.mConsumed + " startSpace " + startSpace + " endSpace "
+                            + endSpace + " secondStartSpace " + secondStartSpace + " secondEndSpace " + secondEndSpace + " lastUnconsumedSpace " + lastUnconsumedSpace + " isSecondEndLine=" + isSecondEndLine);
         }
 
         int left = 0, right = 0, top = 0, bottom = 0;
@@ -670,7 +672,7 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
 
             if (DEBUG) {
                 Log.d(TAG, "layout item in position: " + params.getViewPosition() + " with text with SpanIndex: " + index + " into (" +
-                    left + ", " + top + ", " + right + ", " + bottom + " )");
+                        left + ", " + top + ", " + right + ", " + bottom + "), topInfo=[layoutState.getOffset()=" + layoutState.getOffset() + " startSpace=" + startSpace + " secondStartSpace=" + secondStartSpace + " consumedGap=" + consumedGap + " lastUnconsumedSpace=" + lastUnconsumedSpace + "]");
             }
 
             // We calculate everything with View's bounding box (which includes decor and margins)
@@ -917,13 +919,13 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
         }
 
         private GridRangeStyle findRangeStyle(GridRangeStyle rangeStyle, int position){
-            for (int i = 0, size = rangeStyle.mChildren.size(); i < size; i++) {
-                GridRangeStyle childRangeStyle = rangeStyle.mChildren.valueAt(i);
-                Range range = rangeStyle.mChildren.keyAt(i);
+            for (Map.Entry<Range<Integer>, GridRangeStyle> entry : rangeStyle.mChildren.entrySet()) {
+                GridRangeStyle childRangeStyle = entry.getValue();
+                Range range = entry.getKey();
                 if (!childRangeStyle.isChildrenEmpty()){
                     return findRangeStyle(childRangeStyle, position);
                 } else if (range.contains(position)) {
-                    return rangeStyle.mChildren.valueAt(i);
+                    return childRangeStyle;
                 }
             }
             return rangeStyle;
@@ -932,11 +934,11 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
         public GridRangeStyle findSiblingStyleByPosition(int position) {
             GridRangeStyle rangeStyle = null;
             if (mParent != null) {
-                ArrayMap<Range<Integer>, GridRangeStyle> siblings = mParent.mChildren;
-                for (int i = 0, size = siblings.size(); i < size; i++) {
-                    Range range = siblings.keyAt(i);
+                HashMap<Range<Integer>, GridRangeStyle> siblings = mParent.mChildren;
+                for (Map.Entry<Range<Integer>, GridRangeStyle> entry : siblings.entrySet()) {
+                    Range range = entry.getKey();
                     if (range.contains(position)) {
-                        GridRangeStyle childRangeStyle = siblings.valueAt(i);
+                        GridRangeStyle childRangeStyle = entry.getValue();
                         if (!childRangeStyle.equals(this)) {
                             rangeStyle = childRangeStyle;
                         }
@@ -949,8 +951,8 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
 
         public void onInvalidateSpanIndexCache() {
             mSpanSizeLookup.invalidateSpanIndexCache();
-            for (int i = 0, size = mChildren.size(); i < size; i++) {
-                GridRangeStyle rangeStyle = mChildren.valueAt(i);
+            for (Map.Entry<Range<Integer>, GridRangeStyle> entry : mChildren.entrySet()) {
+                GridRangeStyle rangeStyle = entry.getValue();
                 rangeStyle.onInvalidateSpanIndexCache();
             }
         }
@@ -958,8 +960,8 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
         public static int computeEndAlignOffset(GridRangeStyle rangeStyle, boolean layoutInVertical) {
             int offset = layoutInVertical ? rangeStyle.mMarginBottom + rangeStyle.mPaddingBottom : rangeStyle.mMarginRight + rangeStyle.mPaddingRight;
             int endPosition = rangeStyle.getRange().getUpper().intValue();
-            for (int i = 0, size = rangeStyle.mChildren.size(); i < size; i++) {
-                GridRangeStyle childRangeStyle = rangeStyle.mChildren.valueAt(i);
+            for (Map.Entry<Range<Integer>, GridRangeStyle> entry : rangeStyle.mChildren.entrySet()) {
+                GridRangeStyle childRangeStyle = entry.getValue();
                 if (!childRangeStyle.isChildrenEmpty()){
                     offset += computeEndAlignOffset(childRangeStyle, layoutInVertical);
                 }else if (childRangeStyle.mRange.getUpper().intValue() == endPosition) {
@@ -974,8 +976,8 @@ public class RangeGridLayoutHelper extends BaseLayoutHelper {
         public static int computeStartAlignOffset(GridRangeStyle rangeStyle, boolean layoutInVertical) {
             int offset = layoutInVertical ? -rangeStyle.mMarginTop - rangeStyle.mPaddingTop : -rangeStyle.mMarginLeft - rangeStyle.mPaddingLeft;
             int startPosition = rangeStyle.getRange().getLower().intValue();
-            for (int i = 0, size = rangeStyle.mChildren.size(); i < size; i++) {
-                GridRangeStyle childRangeStyle = rangeStyle.mChildren.valueAt(i);
+            for (Map.Entry<Range<Integer>, GridRangeStyle> entry : rangeStyle.mChildren.entrySet()) {
+                GridRangeStyle childRangeStyle = entry.getValue();
                 if (!childRangeStyle.isChildrenEmpty()){
                     //FIXME may compute the wrong start space here
                     offset += computeStartAlignOffset(childRangeStyle, layoutInVertical);

@@ -24,16 +24,16 @@
 
 package com.alibaba.android.vlayout.layout;
 
+import android.support.annotation.Nullable;
+import android.support.v7.widget.RecyclerView;
+import android.util.Log;
+import android.view.View;
+
 import com.alibaba.android.vlayout.LayoutHelper;
 import com.alibaba.android.vlayout.LayoutManagerHelper;
 import com.alibaba.android.vlayout.OrientationHelperEx;
 import com.alibaba.android.vlayout.VirtualLayoutManager;
 import com.alibaba.android.vlayout.VirtualLayoutManager.LayoutStateWrapper;
-
-import android.support.annotation.Nullable;
-import android.support.v7.widget.RecyclerView;
-import android.util.Log;
-import android.view.View;
 
 import static android.support.v7.widget.LinearLayoutManager.VERTICAL;
 
@@ -45,18 +45,27 @@ import static android.support.v7.widget.LinearLayoutManager.VERTICAL;
  * @since 1.0.0
  */
 public class StickyLayoutHelper extends FixAreaLayoutHelper {
+    public interface StickyListener {
+        void onSticky(int pos, View view);
+
+        void onUnSticky(int pos, View view);
+    }
 
     private static final String TAG = "StickyStartLayoutHelper";
 
     private int mPos = -1;
 
     private boolean mStickyStart = true;
+
     private int mOffset = 0;
 
-
     private View mFixView = null;
+
     private boolean mDoNormalHandle = false;
 
+    private boolean isLastStatusSticking = false;
+
+    private StickyListener stickyListener;
 
     public StickyLayoutHelper() {
         this(true);
@@ -76,7 +85,7 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
     }
 
     public boolean isStickyNow() {
-        return !mDoNormalHandle;
+        return !mDoNormalHandle && mFixView != null;
     }
 
     @Override
@@ -173,7 +182,9 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
                     top = orientationHelper.getStartAfterPadding() + mMarginTop + mOffset + mAdjuster.top;
                     bottom = top + result.mConsumed;
                 } else {
-                    Log.i("Sticky", "remainingSpace: " + remainingSpace + "    offset: " + mOffset);
+                    if (VirtualLayoutManager.sDebuggable) {
+                        Log.i("Sticky", "remainingSpace: " + remainingSpace + "    offset: " + mOffset);
+                    }
                 }
             }
 
@@ -223,8 +234,6 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
         } else {
             // result.mConsumed += mOffset;
         }
-
-
     }
 
 
@@ -279,6 +288,7 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
             }
         }
 
+        View stickyView = mFixView;
         // Not in normal flow
         if (!mDoNormalHandle && mFixView != null) {
             // already capture in layoutViews phase
@@ -291,12 +301,25 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
         } else {
             fixLayoutStateInCase2(orientationHelper, recycler, startPosition, endPosition, helper);
         }
+
+        if (stickyListener != null) {
+            if (isLastStatusSticking && !isStickyNow()) {
+                stickyListener.onUnSticky(mPos, stickyView);
+                isLastStatusSticking = false;
+            } else if (!isLastStatusSticking && isStickyNow()) {
+                stickyListener.onSticky(mPos, mFixView);
+                isLastStatusSticking = true;
+            }
+        }
     }
 
     private void fixLayoutStateFromAbnormal2Normal(OrientationHelperEx orientationHelper, RecyclerView.Recycler recycler, int startPosition, int endPosition,
-        LayoutManagerHelper helper) {
+                                                   LayoutManagerHelper helper) {
         //fix status, from abnormal to normal
-        Log.i(TAG, "abnormal pos: " + mPos + " start: " + startPosition + " end: " + endPosition);
+        if (VirtualLayoutManager.sDebuggable) {
+            Log.i(TAG, "abnormal pos: " + mPos + " start: " + startPosition + " end: " + endPosition);
+        }
+
         if (mFixView != null) {
             int top, bottom;
             View refer = null;
@@ -344,7 +367,7 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
     }
 
     private void fixLayoutStateInCase1(OrientationHelperEx orientationHelper, RecyclerView.Recycler recycler, int startPosition, int endPosition,
-        LayoutManagerHelper helper) {
+                                       LayoutManagerHelper helper) {
         // considering the case when last layoutHelper has margin bottom
         // 1. normal flow to abnormal flow; 2. abnormal flow to normal flow
         if ((mStickyStart && endPosition >= mPos) || (!mStickyStart && startPosition <= mPos)) {
@@ -472,7 +495,9 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
             if (mDoNormalHandle) {
                 // offset
                 if (index >= 0) {
-                    helper.addChildView(mFixView, index);
+                    if (mFixView.getParent() == null) {
+                        helper.addChildView(mFixView, index);
+                    }
                     mFixView = null;
                 }
             } else {
@@ -487,7 +512,7 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
     }
 
     private void fixLayoutStateInCase2(OrientationHelperEx orientationHelper, RecyclerView.Recycler recycler, int startPosition, int endPosition,
-        LayoutManagerHelper helper) {
+                                       LayoutManagerHelper helper) {
         // 1. normal flow to abnormal flow; 2. abnormal flow to normal flow
         // (mDoNormalHandle && mFixView != null) || (!mDoNormalHandle && mFixView == null)
         View eView = mFixView;
@@ -504,7 +529,7 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
 
             if (eView == null) {
                 // TODO? why do condition here?
-                if (mOffset + (mStickyStart ? startAdjust : endAdjust) > 0) {
+                if (mOffset + (mStickyStart ? startAdjust : endAdjust) >= 0) {
                     normalHandle = true;
                 }
                 mFixView = recycler.getViewForPosition(mPos);
@@ -661,7 +686,9 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
             if (normalHandle) {
                 // offset
                 if (index >= 0) {
-                    helper.addChildView(mFixView, index);
+                    if (mFixView.getParent() == null) {
+                        helper.addChildView(mFixView, index);
+                    }
                     mFixView = null;
                 }
             } else {
@@ -683,8 +710,8 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
     public void onClear(LayoutManagerHelper helper) {
         super.onClear(helper);
         if (mFixView != null) {
-            helper.removeChildView(mFixView);
             helper.recycleView(mFixView);
+            helper.removeChildView(mFixView);
             mFixView = null;
         }
     }
@@ -723,6 +750,10 @@ public class StickyLayoutHelper extends FixAreaLayoutHelper {
             helper.measureChildWithMargins(view, widthSpec, heightSpec);
         }
 
+    }
+
+    public void setStickyListener(StickyListener stickyListener) {
+        this.stickyListener = stickyListener;
     }
 }
 
